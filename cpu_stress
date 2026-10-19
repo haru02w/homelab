@@ -1,0 +1,48 @@
+#!/usr/bin/python3
+import multiprocessing
+import time
+import argparse
+import os
+import sys
+
+def worker(target_percent, period=0.1):
+    # target_percent: 0-100
+    busy = period * (target_percent / 100.0)
+    idle = period - busy
+    try:
+        while True:
+            t0 = time.perf_counter()
+            # busy-wait
+            while (time.perf_counter() - t0) < busy:
+                pass
+            # sleep for the remainder of the period
+            if idle > 0:
+                time.sleep(idle)
+    except KeyboardInterrupt:
+        return
+
+def run(num_workers, target_percent):
+    procs = []
+    for i in range(num_workers):
+        p = multiprocessing.Process(target=worker, args=(target_percent,))
+        p.start()
+        procs.append(p)
+    try:
+        for p in procs:
+            p.join()
+    except KeyboardInterrupt:
+        for p in procs:
+            p.terminate()
+        for p in procs:
+            p.join()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Generate approximate CPU load.")
+    parser.add_argument("--percent", type=float, default=20.5, help="Target percent per worker (0-100).")
+    parser.add_argument("--workers", type=int, default=None, help="Number of worker processes (default = cpu count).")
+    args = parser.parse_args()
+    workers = args.workers or multiprocessing.cpu_count()
+    if not (0 <= args.percent <= 100):
+        print("percent must be 0-100", file=sys.stderr); sys.exit(1)
+    print(f"Starting {workers} workers at ~{args.percent}% each. CTRL-C to stop.")
+    run(workers, args.percent)
